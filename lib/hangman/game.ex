@@ -184,18 +184,18 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
-    %{ state | letters_guessed => [value | letters_guessed] }
-    is_correct = String.contains?(state.letters_needed, guess) 
+    state = put_in(state.letters_guessed, [ guess | state.letters_guessed ])
+    is_correct = String.contains?(state.word, guess) 
   
     if is_correct do 
-      %{ state | letters_needed = List.delete(state.letters_needed, guess) } 
+      state = %{ state | letters_needed: List.delete(state.letters_needed, guess) } 
     else
-      state.turns_left = state.turns_left - 1
+      state = put_in(state.turns_left, state.turns_left - 1)
     end
 
     status = process_status(state, is_correct)
 
-    {
+    update = {
         state,
         status,
         guess
@@ -223,7 +223,7 @@ Here's this module being exercised from an iex session:
 
   @spec letters_used_so_far(state) :: [ binary ]
   def letters_used_so_far(state) do
-    state.letters_needed
+    state.letters_guessed
   end
 
   @doc """
@@ -250,7 +250,17 @@ Here's this module being exercised from an iex session:
 
   @spec word_as_string(state, boolean) :: binary
   def word_as_string(state, reveal \\ false) do
-    state.word
+    cond do 
+      reveal -> String.codepoints(state.word) |> Enum.join(" ")
+      true -> String.codepoints(state.word) 
+              |> Enum.map_join(" ", 
+                  fn (x) -> 
+                    cond do
+                      Enum.member?(state.letters_guessed, x) -> x 
+                      true -> "_"
+                    end  
+                end)
+      end    
   end
 
   ###########################
@@ -266,11 +276,11 @@ Here's this module being exercised from an iex session:
 
   defp process_status(state, is_correct) do
     cond do
-      Enum.empty?(state.letters_needed) -> :win 
+      Enum.empty?(state.letters_needed) -> :won 
       is_correct -> :good_guess
       state.turns_left == 0 -> :lost
       true -> :bad_guess
     end
   end
 
- end
+end
