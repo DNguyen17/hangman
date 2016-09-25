@@ -142,6 +142,7 @@ Here's this module being exercised from an iex session:
 
   @spec new_game :: state
   def new_game do
+    new_game(Hangman.Dictionary.random_word)
   end
 
 
@@ -152,6 +153,12 @@ Here's this module being exercised from an iex session:
   """
   @spec new_game(binary) :: state
   def new_game(word) do
+    %{
+        word: word,
+        turns_left: 10,
+        letters_needed: calculate_unique_letters(word),
+        letters_guessed: []
+    }
   end
 
 
@@ -177,6 +184,22 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
+    %{ state | letters_guessed => [value | letters_guessed] }
+    is_correct = String.contains?(state.letters_needed, guess) 
+  
+    if is_correct do 
+      %{ state | letters_needed = List.delete(state.letters_needed, guess) } 
+    else
+      state.turns_left = state.turns_left - 1
+    end
+
+    status = process_status(state, is_correct)
+
+    {
+        state,
+        status,
+        guess
+    }
   end
 
 
@@ -187,6 +210,7 @@ Here's this module being exercised from an iex session:
   """
   @spec word_length(state) :: integer
   def word_length(%{ word: word }) do
+    String.length word
   end
 
   @doc """
@@ -199,6 +223,7 @@ Here's this module being exercised from an iex session:
 
   @spec letters_used_so_far(state) :: [ binary ]
   def letters_used_so_far(state) do
+    state.letters_needed
   end
 
   @doc """
@@ -211,6 +236,7 @@ Here's this module being exercised from an iex session:
 
   @spec turns_left(state) :: integer
   def turns_left(state) do
+    state.turns_left
   end
 
   @doc """
@@ -224,6 +250,7 @@ Here's this module being exercised from an iex session:
 
   @spec word_as_string(state, boolean) :: binary
   def word_as_string(state, reveal \\ false) do
+    state.word
   end
 
   ###########################
@@ -231,5 +258,19 @@ Here's this module being exercised from an iex session:
   ###########################
 
   # Your private functions go here
+  defp calculate_unique_letters(word) do
+    String.codepoints(word)
+    |> Enum.uniq
+  end
+
+
+  defp process_status(state, is_correct) do
+    cond do
+      Enum.empty?(state.letters_needed) -> :win 
+      is_correct -> :good_guess
+      state.turns_left == 0 -> :lost
+      true -> :bad_guess
+    end
+  end
 
  end
