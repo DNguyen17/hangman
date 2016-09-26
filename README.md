@@ -1,5 +1,8 @@
 # Hangman
 
+Danh Nguyen 
+40062026
+
 **TODO: Add description**
 
 ## Installation
