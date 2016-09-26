@@ -184,22 +184,20 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
+    # add in guess
     state = put_in(state.letters_guessed, [ guess | state.letters_guessed ])
     is_correct = String.contains?(state.word, guess) 
   
-    if is_correct do 
-      state = %{ state | letters_needed: List.delete(state.letters_needed, guess) } 
-    else
-      state = put_in(state.turns_left, state.turns_left - 1)
-    end
+    # delete letter needed if good guess; lose a turn if bad guess
+    state = 
+      case is_correct do
+        true ->  %{ state | letters_needed: List.delete(state.letters_needed, guess) }
+        false -> put_in(state.turns_left, state.turns_left - 1)
+      end
 
-    status = process_status(state, is_correct)
+    # update status and guess
+    process_status(state, is_correct, guess)
 
-    update = {
-        state,
-        status,
-        guess
-    }
   end
 
 
@@ -252,14 +250,7 @@ Here's this module being exercised from an iex session:
   def word_as_string(state, reveal \\ false) do
     cond do 
       reveal -> String.codepoints(state.word) |> Enum.join(" ")
-      true -> String.codepoints(state.word) 
-              |> Enum.map_join(" ", 
-                  fn (x) -> 
-                    cond do
-                      Enum.member?(state.letters_guessed, x) -> x 
-                      true -> "_"
-                    end  
-                end)
+      true -> String.replace(state.word, ~r/[^#{Enum.join(state.letters_guessed)} ]/, "_") |> String.codepoints |> Enum.join(" ")
       end    
   end
 
@@ -274,12 +265,12 @@ Here's this module being exercised from an iex session:
   end
 
 
-  defp process_status(state, is_correct) do
+  defp process_status(state, is_correct, guess) do
     cond do
-      Enum.empty?(state.letters_needed) -> :won 
-      is_correct -> :good_guess
-      state.turns_left == 0 -> :lost
-      true -> :bad_guess
+      Enum.empty?(state.letters_needed) -> { state, :won, nil } 
+      is_correct -> { state, :good_guess, guess }
+      state.turns_left <= 0 -> { state, :lost, nil }
+      true -> { state, :bad_guess, guess }
     end
   end
 
