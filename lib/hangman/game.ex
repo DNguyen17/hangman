@@ -184,20 +184,9 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
-    # add in guess
-    state = put_in(state.letters_guessed, [ guess | state.letters_guessed ])
-    is_correct = String.contains?(state.word, guess) 
-  
-    # delete letter needed if good guess; lose a turn if bad guess
-    state = 
-      case is_correct do
-        true ->  %{ state | letters_needed: List.delete(state.letters_needed, guess) }
-        false -> put_in(state.turns_left, state.turns_left - 1)
-      end
-
-    # update status and guess
-    process_status(state, is_correct, guess)
-
+    # update state, then status and guess
+    process_new_state(state, guess) 
+    |> process_status
   end
 
 
@@ -248,9 +237,10 @@ Here's this module being exercised from an iex session:
 
   @spec word_as_string(state, boolean) :: binary
   def word_as_string(state, reveal \\ false) do
-    cond do 
-      reveal -> String.codepoints(state.word) |> Enum.join(" ")
-      true -> String.replace(state.word, ~r/[^#{Enum.join(state.letters_guessed)} ]/, "_") |> String.codepoints |> Enum.join(" ")
+    case reveal do 
+      true -> String.codepoints(state.word) |> Enum.join(" ")
+      # replace the unguessed words with _ 
+      false -> String.replace(state.word, ~r/[^#{Enum.join(state.letters_guessed)} ]/, "_") |> String.codepoints |> Enum.join(" ")
       end    
   end
 
@@ -265,7 +255,21 @@ Here's this module being exercised from an iex session:
   end
 
 
-  defp process_status(state, is_correct, guess) do
+  defp process_new_state(state, guess) do
+    # add in new guess
+    state = put_in(state.letters_guessed, [ guess | state.letters_guessed ])
+    is_correct = String.contains?(state.word, guess)
+
+    # delete letter needed if good guess; lose a turn if bad guess
+    case is_correct do
+      true ->  { %{ state | letters_needed: List.delete(state.letters_needed, guess) }, is_correct, guess }
+      false -> { put_in(state.turns_left, state.turns_left - 1), is_correct, guess }
+    end
+  end
+
+
+  defp process_status({state, is_correct, guess}) do
+    # if no more letters to get :won; if no more turns :lost
     cond do
       Enum.empty?(state.letters_needed) -> { state, :won, nil } 
       is_correct -> { state, :good_guess, guess }
@@ -273,5 +277,6 @@ Here's this module being exercised from an iex session:
       true -> { state, :bad_guess, guess }
     end
   end
+
 
 end
