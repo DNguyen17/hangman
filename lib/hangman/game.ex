@@ -142,6 +142,7 @@ Here's this module being exercised from an iex session:
 
   @spec new_game :: state
   def new_game do
+    new_game(Hangman.Dictionary.random_word)
   end
 
 
@@ -152,6 +153,12 @@ Here's this module being exercised from an iex session:
   """
   @spec new_game(binary) :: state
   def new_game(word) do
+    %{
+        word: word,
+        turns_left: 10,
+        letters_needed: calculate_unique_letters(word),
+        letters_guessed: []
+    }
   end
 
 
@@ -177,6 +184,9 @@ Here's this module being exercised from an iex session:
 
   @spec make_move(state, ch) :: { state, atom, optional_ch }
   def make_move(state, guess) do
+    # update state, then status and guess
+    process_new_state(state, guess) 
+    |> process_status
   end
 
 
@@ -187,6 +197,7 @@ Here's this module being exercised from an iex session:
   """
   @spec word_length(state) :: integer
   def word_length(%{ word: word }) do
+    String.length word
   end
 
   @doc """
@@ -199,6 +210,7 @@ Here's this module being exercised from an iex session:
 
   @spec letters_used_so_far(state) :: [ binary ]
   def letters_used_so_far(state) do
+    state.letters_guessed
   end
 
   @doc """
@@ -211,6 +223,7 @@ Here's this module being exercised from an iex session:
 
   @spec turns_left(state) :: integer
   def turns_left(state) do
+    state.turns_left
   end
 
   @doc """
@@ -224,6 +237,11 @@ Here's this module being exercised from an iex session:
 
   @spec word_as_string(state, boolean) :: binary
   def word_as_string(state, reveal \\ false) do
+    case reveal do 
+      true -> String.codepoints(state.word) |> Enum.join(" ")
+      # replace the unguessed words with _ 
+      false -> String.replace(state.word, ~r/[^#{Enum.join(state.letters_guessed)} ]/, "_") |> String.codepoints |> Enum.join(" ")
+      end    
   end
 
   ###########################
@@ -231,5 +249,34 @@ Here's this module being exercised from an iex session:
   ###########################
 
   # Your private functions go here
+  defp calculate_unique_letters(word) do
+    String.codepoints(word)
+    |> Enum.uniq
+  end
 
- end
+
+  defp process_new_state(state, guess) do
+    # add in new guess
+    state = put_in(state.letters_guessed, [ guess | state.letters_guessed ])
+    is_correct = String.contains?(state.word, guess)
+
+    # delete letter needed if good guess; lose a turn if bad guess
+    case is_correct do
+      true ->  { %{ state | letters_needed: List.delete(state.letters_needed, guess) }, is_correct, guess }
+      false -> { put_in(state.turns_left, state.turns_left - 1), is_correct, guess }
+    end
+  end
+
+
+  defp process_status({state, is_correct, guess}) do
+    # if no more letters to get :won; if no more turns :lost
+    cond do
+      Enum.empty?(state.letters_needed) -> { state, :won, nil } 
+      is_correct -> { state, :good_guess, guess }
+      state.turns_left <= 0 -> { state, :lost, nil }
+      true -> { state, :bad_guess, guess }
+    end
+  end
+
+
+end
